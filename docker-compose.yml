@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - app-data:/app/data
+      - app-photos:/app/uploads/photos
+    environment:
+      - SESSION_SECRET=${SESSION_SECRET:-change-me-to-a-random-string-at-least-32-characters-long!}
+      - GMAIL_USER=${GMAIL_USER:-}
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
+    restart: unless-stopped
+
+volumes:
+  app-data:
+  app-photos:

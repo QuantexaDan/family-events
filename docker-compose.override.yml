@@ -1,0 +1,11 @@
+# Cloudflare Tunnel sidecar for deezfamily.com
+
+services:
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run family-events
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro
+    depends_on:
+      - app
+    restart: unless-stopped
