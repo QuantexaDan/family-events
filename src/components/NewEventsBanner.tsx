@@ -36,8 +36,8 @@ export default function NewEventsBanner({ events }: NewEventsBannerProps) {
       >
         <span>
           {events.length === 1
-            ? "1 new event since your last visit"
-            : `${events.length} new events since your last visit`}
+            ? "1 new event you haven’t seen yet"
+            : `${events.length} new events you haven’t seen yet`}
         </span>
         {events.length === 1 ? (
           <span className="text-amber-600">&rarr;</span>

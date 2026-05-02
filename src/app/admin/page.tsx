@@ -21,7 +21,13 @@ interface Member {
   isSelf: boolean;
 }
 
-type Tab = "invites" | "members";
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+}
+
+type Tab = "invites" | "members" | "categories";
 
 export default function AdminPage() {
   const { toast } = useToast();
@@ -33,6 +39,10 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [resetPasswordFor, setResetPasswordFor] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [categoriesList, setCategoriesList] = useState<Category[]>([]);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatColor, setNewCatColor] = useState("#FF5733");
+  const [catLoading, setCatLoading] = useState(false);
 
   function fetchInvites() {
     fetch("/api/invites").then((r) => r.json()).then((data) => {
@@ -46,9 +56,16 @@ export default function AdminPage() {
     });
   }
 
+  function fetchCategories() {
+    fetch("/api/categories").then((r) => r.json()).then((data) => {
+      if (Array.isArray(data)) setCategoriesList(data);
+    });
+  }
+
   useEffect(() => {
     fetchInvites();
     fetchMembers();
+    fetchCategories();
   }, []);
 
   async function createInvite(e: React.FormEvent) {
@@ -123,6 +140,30 @@ export default function AdminPage() {
     }
   }
 
+  async function createCategory(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newCatName.trim() || !newCatColor) return;
+    setCatLoading(true);
+
+    const res = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newCatName.trim(), color: newCatColor }),
+    });
+
+    const data = await res.json();
+    setCatLoading(false);
+
+    if (res.ok) {
+      setNewCatName("");
+      setNewCatColor("#FF5733");
+      fetchCategories();
+      toast("Category created");
+    } else {
+      toast(data.error || "Failed to create category", "error");
+    }
+  }
+
   async function removeMember(userId: string, name: string) {
     if (!confirm(`Remove ${name}? This will delete their account and all their content.`)) return;
     const res = await fetch(`/api/users/${userId}`, { method: "DELETE" });
@@ -140,7 +181,7 @@ export default function AdminPage() {
       <h1 className="font-heading font-800 text-2xl mb-6">Admin</h1>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-bg-secondary rounded-xl p-1 max-w-xs">
+      <div className="flex gap-1 mb-6 bg-bg-secondary rounded-xl p-1 max-w-md">
         <button
           onClick={() => setTab("members")}
           className={`flex-1 px-4 py-2 rounded-lg text-sm font-600 transition-all ${
@@ -156,6 +197,14 @@ export default function AdminPage() {
           }`}
         >
           Invites
+        </button>
+        <button
+          onClick={() => setTab("categories")}
+          className={`flex-1 px-4 py-2 rounded-lg text-sm font-600 transition-all ${
+            tab === "categories" ? "bg-white shadow-sm text-text-primary" : "text-text-secondary hover:text-text-primary"
+          }`}
+        >
+          Categories
         </button>
       </div>
 
@@ -248,6 +297,70 @@ export default function AdminPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Categories tab */}
+      {tab === "categories" && (
+        <div className="space-y-8 max-w-2xl">
+          <div className="bg-white rounded-2xl border border-border p-6">
+            <h2 className="font-heading font-700 text-lg mb-4">Add a category</h2>
+            <form onSubmit={createCategory} className="space-y-4">
+              <div>
+                <label htmlFor="cat-name" className="block text-sm font-600 mb-1.5">Name</label>
+                <input
+                  id="cat-name"
+                  type="text"
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  placeholder="e.g. Wedding, Sports"
+                  className="w-full px-4 py-2.5 rounded-xl border border-border bg-bg-primary focus:outline-none focus:ring-2 focus:ring-coral/30 focus:border-coral transition"
+                />
+              </div>
+              <div>
+                <label htmlFor="cat-color" className="block text-sm font-600 mb-1.5">Color</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="cat-color"
+                    type="color"
+                    value={newCatColor}
+                    onChange={(e) => setNewCatColor(e.target.value)}
+                    className="w-12 h-10 rounded-lg border border-border cursor-pointer"
+                  />
+                  <span className="text-sm text-text-secondary font-mono">{newCatColor.toUpperCase()}</span>
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={!newCatName.trim() || catLoading}
+                className="px-6 py-2.5 rounded-xl bg-coral text-white font-600 hover:bg-coral-hover transition disabled:opacity-50"
+              >
+                {catLoading ? "Creating..." : "Add category"}
+              </button>
+            </form>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-border p-6">
+            <h2 className="font-heading font-700 text-lg mb-4">
+              Existing categories ({categoriesList.length})
+            </h2>
+            {categoriesList.length === 0 ? (
+              <p className="text-text-secondary text-sm">No categories yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {categoriesList.map((cat) => (
+                  <div key={cat.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                    <span
+                      className="w-5 h-5 rounded-full shrink-0"
+                      style={{ backgroundColor: cat.color }}
+                    />
+                    <span className="font-600">{cat.name}</span>
+                    <span className="text-xs text-text-secondary font-mono">{cat.color}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -1,5 +1,12 @@
 import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+export const categories = sqliteTable("categories", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  color: text("color").notNull().unique(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
@@ -31,6 +38,7 @@ export const events = sqliteTable("events", {
   endDate: text("end_date"),
   startTime: text("start_time"),
   endTime: text("end_time"),
+  categoryId: text("category_id").references(() => categories.id),
   createdBy: text("created_by").notNull().references(() => users.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
@@ -48,12 +56,24 @@ export const eventResponses = sqliteTable(
   (table) => [uniqueIndex("event_user_unique").on(table.eventId, table.userId)]
 );
 
+export const eventViews = sqliteTable(
+  "event_views",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id),
+    viewedAt: integer("viewed_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [uniqueIndex("event_view_unique").on(table.eventId, table.userId)]
+);
+
 export const comments = sqliteTable("comments", {
   id: text("id").primaryKey(),
   eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id),
   body: text("body").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }),
 });
 
 export const photos = sqliteTable("photos", {

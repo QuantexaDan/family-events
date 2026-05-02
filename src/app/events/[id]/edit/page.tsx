@@ -4,6 +4,12 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export default function EditEventPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -17,10 +23,18 @@ export default function EditEventPage() {
   const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const todayStr = new Date().toISOString().split("T")[0];
+
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setCategories(data); });
+  }, []);
 
   useEffect(() => {
     fetch(`/api/events/${id}`)
@@ -36,6 +50,7 @@ export default function EditEventPage() {
           setEndDate(data.endDate ?? "");
           setStartTime(data.startTime ?? "");
           setEndTime(data.endTime ?? "");
+          setCategoryId(data.category?.id ?? "");
         }
         setFetching(false);
       });
@@ -49,7 +64,7 @@ export default function EditEventPage() {
     const res = await fetch(`/api/events/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description, location, startDate, endDate, startTime, endTime }),
+      body: JSON.stringify({ title, description, location, startDate, endDate, startTime, endTime, categoryId: categoryId || null }),
     });
 
     const data = await res.json();
@@ -110,6 +125,21 @@ export default function EditEventPage() {
             onChange={(e) => setLocation(e.target.value)}
             className="w-full px-4 py-2.5 rounded-xl border border-border bg-white focus:outline-none focus:ring-2 focus:ring-coral/30 focus:border-coral transition"
           />
+        </div>
+
+        <div>
+          <label htmlFor="category" className="block text-sm font-600 mb-1.5">Category (optional)</label>
+          <select
+            id="category"
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="w-full px-4 py-2.5 rounded-xl border border-border bg-white focus:outline-none focus:ring-2 focus:ring-coral/30 focus:border-coral transition"
+          >
+            <option value="">No category</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

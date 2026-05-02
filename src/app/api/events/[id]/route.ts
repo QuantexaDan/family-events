@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
+import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
-import { events, eventResponses, users } from "@/lib/schema";
+import { events, eventResponses, users, categories, eventViews } from "@/lib/schema";
 import { requireAuth } from "@/lib/auth";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 export async function GET(
   _request: NextRequest,
@@ -18,7 +19,24 @@ export async function GET(
     return Response.json({ error: "Event not found" }, { status: 404 });
   }
 
+  // Record that this user has viewed this event
+  const existingView = db.select().from(eventViews)
+    .where(sql`${eventViews.eventId} = ${id} AND ${eventViews.userId} = ${user.id}`)
+    .get();
+  if (!existingView) {
+    db.insert(eventViews).values({
+      id: nanoid(),
+      eventId: id,
+      userId: user.id,
+      viewedAt: new Date(),
+    }).run();
+  }
+
   const creator = db.select({ displayName: users.displayName }).from(users).where(eq(users.id, event.createdBy)).get();
+
+  const category = event.categoryId
+    ? db.select().from(categories).where(eq(categories.id, event.categoryId)).get()
+    : null;
 
   const responses = db
     .select({
@@ -36,6 +54,7 @@ export async function GET(
   return Response.json({
     ...event,
     createdByName: creator?.displayName ?? "Unknown",
+    category: category ? { id: category.id, name: category.name, color: category.color } : null,
     rsvps: {
       going: responses.filter((r) => r.status === "going").map((r) => ({ userId: r.userId, displayName: r.displayName })),
       maybe: responses.filter((r) => r.status === "maybe").map((r) => ({ userId: r.userId, displayName: r.displayName })),
@@ -65,7 +84,7 @@ export async function PUT(
     return Response.json({ error: "Only the creator or admin can edit this event" }, { status: 403 });
   }
 
-  const { title, description, location, startDate, endDate, startTime, endTime } =
+  const { title, description, location, startDate, endDate, startTime, endTime, categoryId } =
     await request.json();
 
   if (!title || !startDate) {
@@ -86,6 +105,7 @@ export async function PUT(
       endDate: endDate || null,
       startTime: startTime || null,
       endTime: endTime || null,
+      categoryId: categoryId || null,
       updatedAt: new Date(),
     })
     .where(eq(events.id, id))

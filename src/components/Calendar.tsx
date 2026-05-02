@@ -9,6 +9,7 @@ interface CalendarEvent {
   startDate: string;
   startTime: string | null;
   location: string | null;
+  category: { id: string; name: string; color: string } | null;
   rsvps: { going: string[]; maybe: string[]; notGoing: string[] };
   myRsvp: string | null;
   isNew: boolean;
@@ -137,9 +138,8 @@ export default function Calendar() {
                   {dayEvents.slice(0, 3).map((ev, j) => (
                     <span
                       key={j}
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        ev.isNew ? "bg-amber animate-pulse" : "bg-coral"
-                      }`}
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: ev.category?.color ?? "var(--coral)" }}
                     />
                   ))}
                 </div>
@@ -188,6 +188,14 @@ export default function Calendar() {
                         <h4 className="font-600 group-hover:text-coral transition-colors">
                           {event.title}
                         </h4>
+                        {event.category && (
+                          <span
+                            className="text-xs px-2 py-0.5 rounded-full font-600 text-white"
+                            style={{ backgroundColor: event.category.color }}
+                          >
+                            {event.category.name}
+                          </span>
+                        )}
                         {event.isNew && (
                           <span className="text-xs bg-amber/20 text-amber-700 px-2 py-0.5 rounded-full font-600">
                             New

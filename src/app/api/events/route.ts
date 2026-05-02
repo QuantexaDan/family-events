@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
-import { events, eventResponses, users } from "@/lib/schema";
+import { events, eventResponses, users, categories, eventViews } from "@/lib/schema";
 import { requireAuth } from "@/lib/auth";
 import { eq, sql } from "drizzle-orm";
 
@@ -26,8 +26,6 @@ export async function GET(request: NextRequest) {
     allEvents = db.select().from(events).orderBy(events.startDate).all();
   }
 
-  const previousLoginAt = user.previousLoginAt;
-
   const eventsWithRsvps = allEvents.map((event) => {
     const responses = db
       .select({
@@ -42,11 +40,18 @@ export async function GET(request: NextRequest) {
 
     const myRsvp = responses.find((r) => r.userId === user.id);
 
-    const eventCreatedAt = event.createdAt instanceof Date ? event.createdAt.getTime() : Number(event.createdAt) * 1000;
-    const isNew = previousLoginAt ? eventCreatedAt > previousLoginAt : false;
+    const viewed = db.select().from(eventViews)
+      .where(sql`${eventViews.eventId} = ${event.id} AND ${eventViews.userId} = ${user.id}`)
+      .get();
+    const isNew = event.createdBy !== user.id && !viewed;
+
+    const category = event.categoryId
+      ? db.select().from(categories).where(eq(categories.id, event.categoryId)).get()
+      : null;
 
     return {
       ...event,
+      category: category ? { id: category.id, name: category.name, color: category.color } : null,
       rsvps: {
         going: responses.filter((r) => r.status === "going").map((r) => r.displayName),
         maybe: responses.filter((r) => r.status === "maybe").map((r) => r.displayName),
@@ -64,7 +69,7 @@ export async function POST(request: NextRequest) {
   const user = await requireAuth();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { title, description, location, startDate, endDate, startTime, endTime } =
+  const { title, description, location, startDate, endDate, startTime, endTime, categoryId } =
     await request.json();
 
   if (!title || !startDate) {
@@ -89,6 +94,7 @@ export async function POST(request: NextRequest) {
       endDate: endDate || null,
       startTime: startTime || null,
       endTime: endTime || null,
+      categoryId: categoryId || null,
       createdBy: user.id,
       createdAt: now,
       updatedAt: now,

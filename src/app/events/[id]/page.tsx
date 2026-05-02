@@ -22,6 +22,7 @@ interface EventDetail {
   startTime: string | null;
   endTime: string | null;
   createdByName: string;
+  category: { id: string; name: string; color: string } | null;
   rsvps: {
     going: RsvpPerson[];
     maybe: RsvpPerson[];
@@ -113,7 +114,17 @@ export default function EventDetailPage() {
           &larr; Back to calendar
         </button>
         <div className="flex items-start justify-between">
-          <h1 className="font-heading font-800 text-2xl">{event.title}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="font-heading font-800 text-2xl">{event.title}</h1>
+            {event.category && (
+              <span
+                className="text-xs px-2.5 py-1 rounded-full font-600 text-white"
+                style={{ backgroundColor: event.category.color }}
+              >
+                {event.category.name}
+              </span>
+            )}
+          </div>
           {event.isOwner && (
             <div className="flex gap-2">
               <button

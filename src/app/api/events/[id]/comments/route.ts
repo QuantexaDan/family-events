@@ -22,6 +22,7 @@ export async function GET(
       id: comments.id,
       body: comments.body,
       createdAt: comments.createdAt,
+      updatedAt: comments.updatedAt,
       userId: comments.userId,
       displayName: users.displayName,
     })
@@ -65,4 +66,32 @@ export async function POST(
   }).run();
 
   return Response.json({ ok: true, id: commentId });
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await requireAuth();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: commentId, body } = await request.json();
+
+  if (!commentId || !body || !body.trim()) {
+    return Response.json({ error: "Comment ID and body are required" }, { status: 400 });
+  }
+
+  const comment = db.select().from(comments).where(eq(comments.id, commentId)).get();
+  if (!comment) return Response.json({ error: "Comment not found" }, { status: 404 });
+
+  if (comment.userId !== user.id) {
+    return Response.json({ error: "You can only edit your own comments" }, { status: 403 });
+  }
+
+  db.update(comments)
+    .set({ body: body.trim(), updatedAt: new Date() })
+    .where(eq(comments.id, commentId))
+    .run();
+
+  return Response.json({ ok: true });
 }

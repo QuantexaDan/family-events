@@ -7,6 +7,7 @@ interface Comment {
   id: string;
   body: string;
   createdAt: string;
+  updatedAt: string | null;
   displayName: string;
   isOwn: boolean;
 }
@@ -35,6 +36,9 @@ export default function CommentThread({ eventId }: CommentThreadProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [saving, setSaving] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   function fetchComments() {
@@ -72,6 +76,37 @@ export default function CommentThread({ eventId }: CommentThreadProps) {
     setSending(false);
   }
 
+  function startEditing(comment: Comment) {
+    setEditingId(comment.id);
+    setEditBody(comment.body);
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setEditBody("");
+  }
+
+  async function saveEdit(commentId: string) {
+    if (!editBody.trim() || saving) return;
+
+    setSaving(true);
+    const res = await fetch(`/api/events/${eventId}/comments`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: commentId, body: editBody }),
+    });
+
+    if (res.ok) {
+      setEditingId(null);
+      setEditBody("");
+      fetchComments();
+      toast("Comment updated");
+    } else {
+      toast("Failed to update comment", "error");
+    }
+    setSaving(false);
+  }
+
   return (
     <div>
       {comments.length === 0 ? (
@@ -89,8 +124,52 @@ export default function CommentThread({ eventId }: CommentThreadProps) {
                 <div className="flex items-baseline gap-2">
                   <span className="text-sm font-600">{comment.displayName}</span>
                   <span className="text-xs text-text-secondary">{timeAgo(comment.createdAt)}</span>
+                  {comment.updatedAt && (
+                    <span className="text-xs text-text-secondary italic">(edited)</span>
+                  )}
                 </div>
-                <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{comment.body}</p>
+                {editingId === comment.id ? (
+                  <div className="mt-1 space-y-2">
+                    <input
+                      type="text"
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-border bg-bg-primary focus:outline-none focus:ring-2 focus:ring-coral/30 focus:border-coral transition text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveEdit(comment.id);
+                        if (e.key === "Escape") cancelEditing();
+                      }}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => saveEdit(comment.id)}
+                        disabled={!editBody.trim() || saving}
+                        className="text-xs px-3 py-1 rounded-lg bg-coral text-white font-600 hover:bg-coral-hover transition disabled:opacity-50"
+                      >
+                        {saving ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        onClick={cancelEditing}
+                        className="text-xs px-3 py-1 rounded-lg border border-border text-text-secondary hover:bg-bg-secondary transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2">
+                    <p className="text-sm mt-0.5 whitespace-pre-wrap break-words flex-1">{comment.body}</p>
+                    {comment.isOwn && (
+                      <button
+                        onClick={() => startEditing(comment)}
+                        className="text-xs text-text-secondary hover:text-coral transition-colors shrink-0 mt-0.5"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}
