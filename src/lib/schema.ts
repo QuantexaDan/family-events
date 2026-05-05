@@ -87,3 +87,14 @@ export const photos = sqliteTable("photos", {
   caption: text("caption"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
+
+export const notifications = sqliteTable("notifications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  type: text("type").notNull(),
+  eventId: text("event_id").references(() => events.id, { onDelete: "cascade" }),
+  actorId: text("actor_id").notNull().references(() => users.id),
+  message: text("message").notNull(),
+  read: integer("read").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});

@@ -7,6 +7,7 @@ interface CalendarEvent {
   id: string;
   title: string;
   startDate: string;
+  endDate: string | null;
   startTime: string | null;
   location: string | null;
   category: { id: string; name: string; color: string } | null;
@@ -15,11 +16,63 @@ interface CalendarEvent {
   isNew: boolean;
 }
 
+interface EventSegment {
+  event: CalendarEvent;
+  startCol: number;
+  span: number;
+  row: number;
+}
+
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+
+function toDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function daysBetween(a: string, b: string): number {
+  const da = new Date(a + "T12:00:00");
+  const db = new Date(b + "T12:00:00");
+  return Math.round((db.getTime() - da.getTime()) / (86400000));
+}
+
+function isMultiDay(e: CalendarEvent): boolean {
+  return !!e.endDate && e.endDate !== e.startDate;
+}
+
+function computeWeekSegments(
+  weekStart: string,
+  weekEnd: string,
+  events: CalendarEvent[]
+): EventSegment[] {
+  const multiDayEvents = events.filter(
+    (e) => isMultiDay(e) && e.startDate <= weekEnd && (e.endDate ?? e.startDate) >= weekStart
+  );
+
+  const segments: EventSegment[] = [];
+  for (const event of multiDayEvents) {
+    const startCol = Math.max(0, daysBetween(weekStart, event.startDate));
+    const endCol = Math.min(6, daysBetween(weekStart, event.endDate ?? event.startDate));
+    const span = endCol - startCol + 1;
+    if (span <= 0) continue;
+
+    let row = 0;
+    while (true) {
+      const conflict = segments.some(
+        (s) => s.row === row && !(s.startCol + s.span <= startCol || s.startCol >= startCol + span)
+      );
+      if (!conflict) break;
+      row++;
+    }
+
+    segments.push({ event, startCol, span, row });
+  }
+
+  return segments;
+}
 
 export default function Calendar() {
   const router = useRouter();
@@ -46,15 +99,27 @@ export default function Calendar() {
   for (let i = 0; i < startDow; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);
-  const rowCount = cells.length / 7;
+
+  const weeks: (number | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7));
+  }
+
+  const gridStartDate = new Date(year, month, 1 - startDow);
+
+  function cellDate(weekIndex: number, colIndex: number): string {
+    const d = new Date(gridStartDate);
+    d.setDate(d.getDate() + weekIndex * 7 + colIndex);
+    return toDateStr(d);
+  }
 
   function dateStr(day: number) {
     return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
 
-  function eventsOnDate(day: number) {
+  function singleDayEventsOnDate(day: number) {
     const ds = dateStr(day);
-    return events.filter((e) => e.startDate === ds);
+    return events.filter((e) => !isMultiDay(e) && e.startDate === ds);
   }
 
   const isToday = (day: number) =>
@@ -73,7 +138,10 @@ export default function Calendar() {
   }
 
   const selectedEvents = selectedDate
-    ? events.filter((e) => e.startDate === selectedDate)
+    ? events.filter((e) => {
+        const end = e.endDate ?? e.startDate;
+        return e.startDate <= selectedDate && end >= selectedDate;
+      })
     : [];
 
   return (
@@ -106,45 +174,88 @@ export default function Calendar() {
         ))}
       </div>
 
-      {/* Calendar grid */}
-      <div
-        className="grid grid-cols-7 gap-1 flex-1 min-h-0"
-        style={{ gridTemplateRows: `repeat(${rowCount}, 1fr)` }}
-      >
-        {cells.map((day, i) => {
-          if (day === null) {
-            return (
-              <div key={`empty-${i}`} />
-            );
-          }
-
-          const dayEvents = eventsOnDate(day);
-          const ds = dateStr(day);
-          const selected = selectedDate === ds;
+      {/* Calendar grid — week by week */}
+      <div className="flex flex-col flex-1 min-h-0 gap-0.5">
+        {weeks.map((week, weekIndex) => {
+          const weekStart = cellDate(weekIndex, 0);
+          const weekEnd = cellDate(weekIndex, 6);
+          const segments = computeWeekSegments(weekStart, weekEnd, events);
+          const maxRow = segments.length > 0 ? Math.max(...segments.map((s) => s.row)) + 1 : 0;
+          const totalRows = 1 + maxRow;
+          const rowTemplate = maxRow > 0
+            ? `1fr ${Array(maxRow).fill("10px").join(" ")}`
+            : "1fr";
 
           return (
-            <button
-              key={day}
-              onClick={() => setSelectedDate(selected ? null : ds)}
-              className={`
-                rounded-xl flex flex-col items-center justify-center relative transition-all min-h-0
-                ${isToday(day) ? "bg-bg-accent font-700" : "hover:bg-bg-secondary"}
-                ${selected ? "ring-2 ring-coral bg-white shadow-sm" : ""}
-              `}
+            <div
+              key={weekIndex}
+              className="grid grid-cols-7 gap-x-1 gap-y-1.5 flex-1 min-h-0"
+              style={{ gridTemplateRows: rowTemplate }}
             >
-              <span className={`text-sm ${isToday(day) ? "text-coral" : ""}`}>{day}</span>
-              {dayEvents.length > 0 && (
-                <div className="flex gap-0.5 mt-0.5">
-                  {dayEvents.slice(0, 3).map((ev, j) => (
-                    <span
-                      key={j}
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ backgroundColor: ev.category?.color ?? "var(--coral)" }}
-                    />
-                  ))}
-                </div>
-              )}
-            </button>
+              {/* Day cells — all in row 1 */}
+              {week.map((day, colIndex) => {
+                if (day === null) {
+                  return <div key={`empty-${weekIndex}-${colIndex}`} style={{ gridRow: 1, gridColumn: colIndex + 1 }} />;
+                }
+
+                const dayEvents = singleDayEventsOnDate(day);
+                const ds = dateStr(day);
+                const selected = selectedDate === ds;
+
+                return (
+                  <button
+                    key={day}
+                    onClick={() => setSelectedDate(selected ? null : ds)}
+                    className={`
+                      rounded-xl flex flex-col items-center justify-center relative transition-all min-h-0
+                      ${isToday(day) ? "bg-bg-accent font-700" : "hover:bg-bg-secondary"}
+                      ${selected ? "ring-2 ring-coral bg-white shadow-sm" : ""}
+                    `}
+                    style={{ gridRow: 1, gridColumn: colIndex + 1 }}
+                  >
+                    <span className={`text-sm ${isToday(day) ? "text-coral" : ""}`}>{day}</span>
+                    {dayEvents.length > 0 && (
+                      <div className="flex gap-0.5 mt-0.5">
+                        {dayEvents.slice(0, 3).map((ev, j) => (
+                          <span
+                            key={j}
+                            className="w-1.5 h-1.5 rounded-full"
+                            style={{ backgroundColor: ev.category?.color ?? "var(--coral)" }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* Multi-day event bars — in rows 2+ */}
+              {segments.map((seg) => {
+                const continuesFromPrev = seg.event.startDate < weekStart;
+                const continuesIntoNext = (seg.event.endDate ?? seg.event.startDate) > weekEnd;
+                return (
+                  <button
+                    key={`${seg.event.id}-${weekIndex}`}
+                    className={`
+                      px-1.5 text-[9px] font-600 text-white truncate cursor-pointer hover:opacity-80 transition leading-[10px]
+                      ${continuesFromPrev ? "rounded-l-none" : "rounded-l-full"}
+                      ${continuesIntoNext ? "rounded-r-none" : "rounded-r-full"}
+                    `}
+                    style={{
+                      backgroundColor: seg.event.category?.color ?? "var(--coral)",
+                      gridColumn: `${seg.startCol + 1} / span ${seg.span}`,
+                      gridRow: seg.row + 2,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/events/${seg.event.id}`);
+                    }}
+                  >
+                    {!continuesFromPrev && seg.event.title}
+                  </button>
+                );
+              })}
+            </div>
           );
         })}
       </div>

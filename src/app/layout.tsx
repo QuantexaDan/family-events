@@ -25,7 +25,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const user = await getCurrentUser();
-  const userProp = user ? { displayName: user.displayName, role: user.role } : null;
+  const userProp = user ? { id: user.id, displayName: user.displayName, role: user.role } : null;
 
   return (
     <html lang="en" className={`${nunito.variable} h-full antialiased`}>

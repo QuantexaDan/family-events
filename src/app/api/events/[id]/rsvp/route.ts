@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
-import { events, eventResponses } from "@/lib/schema";
+import { events, eventResponses, notifications } from "@/lib/schema";
 import { requireAuth } from "@/lib/auth";
 import { eq, and } from "drizzle-orm";
 
@@ -46,6 +46,22 @@ export async function POST(
         eventId: id,
         userId: user.id,
         status,
+        createdAt: new Date(),
+      })
+      .run();
+  }
+
+  if (event.createdBy !== user.id) {
+    const statusLabel = status === "not_going" ? "can't make it" : status;
+    db.insert(notifications)
+      .values({
+        id: nanoid(),
+        userId: event.createdBy,
+        type: "rsvp",
+        eventId: id,
+        actorId: user.id,
+        message: `${user.displayName} RSVP'd "${statusLabel}" to ${event.title}`,
+        read: 0,
         createdAt: new Date(),
       })
       .run();

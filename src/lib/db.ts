@@ -95,6 +95,17 @@ export function initDb() {
     );
 
     CREATE UNIQUE INDEX IF NOT EXISTS event_view_unique ON event_views(event_id, user_id);
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      type TEXT NOT NULL,
+      event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+      actor_id TEXT NOT NULL REFERENCES users(id),
+      message TEXT NOT NULL,
+      read INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
   `);
 
   // Migrations
